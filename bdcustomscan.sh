@@ -42,7 +42,7 @@ fi
 
 echo
 echo RUNNING DETECT SCRIPT IN OFFLINE MODE
-bash <(curl $CURLOPTS -s -L https://detect.synopsys.com/detect.sh) --detect.blackduck.signature.scanner.host.url=$HUBURL $DETECTOPTS | tee ${TEMPFILE}_log
+bash <(curl $CURLOPTS -s -L https://detect.synopsys.com/detect.sh) --detect.tools=SIGNATURE_SCAN --detect.blackduck.signature.scanner.host.url=$HUBURL $DETECTOPTS | tee ${TEMPFILE}_log
 if [ $? -ne 0 ]
 then
 	error "Detect script failed"
