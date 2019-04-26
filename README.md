@@ -4,9 +4,9 @@ Bash script to perform a custom scan using Synopsys Detect which can be focussed
 
 The script executes Synopsys Detect dynamically to perform a full signature scan in offline mode, and then process the output json file to remove entries which are not within the supplied filter file.
 
-The filter file needs to contain 
+The filter file needs to contain a list of files or folders which will be used to remove all other scan results not within the list.
 
-Uses jq to format JSON data from API calls (must be preinstalled).
+Requires jq package to be installed to format JSON data from API calls.
 
 # SUPPORTED PLATFORMS
 
@@ -33,12 +33,55 @@ This could be a list of compiled source files.
 The entries must either be absolute (starting with /) or relative (starting with ./) and can either be folders (terminated with /) or files. Lines in the filter file not starting with / or ./ will be ignored.
 
 All parent paths for each entry will be added to the filter list, for example if the entry `./myproject/myfolder/file.cpp` is added to the file, then the folders `./, ./myproject/ and ./myproject/myfolder/` will automatically be added to the list of folders to be included in the scan.
+## Example Filter Files
+
+Filter file of compiled source files with relative path:
+  
+    ************************************
+    Checking ./usr/lib/ssl/engines/libgmp.so
+    ************************************
+
+    ==> SOURCES:
+
+    ./Openssl/openssl-1.0.2n/engines/e_gmp.c
+    ./Openssl/openssl-1.0.2n/crypto/ossl_typ.h
+    ./Openssl/openssl-1.0.2n/include/openssl/ossl_typ.h
+    ./Openssl/openssl-1.0.2n/crypto/crypto.h
+    ./Openssl/openssl-1.0.2n/include/openssl/crypto.h
+    ./Openssl/openssl-1.0.2n/crypto/asn1/asn1.h
+    ./Openssl/openssl-1.0.2n/include/openssl/asn1.h
+    ./Openssl/openssl-1.0.2n/crypto/rsa/rsa.h
+    ./Openssl/openssl-1.0.2n/include/openssl/rsa.h
+    ./Openssl/openssl-1.0.2n/crypto/objects/objects.h
+    ./Openssl/openssl-1.0.2n/include/openssl/objects.h
+    ./Openssl/openssl-1.0.2n/crypto/pkcs7/pkcs7.h
+    ./Openssl/openssl-1.0.2n/include/openssl/pkcs7.h
+    ./Openssl/openssl-1.0.2n/crypto/x509/x509.h
+    ./Openssl/openssl-1.0.2n/include/openssl/x509.h
+    ./Openssl/openssl-1.0.2n/crypto/engine/engine.h
+    ./Openssl/openssl-1.0.2n/include/openssl/engine.h
+
+Filter file containing folders with absolute path:
+  
+    ************************************
+    Checking ./usr/lib/ssl/engines/libgmp.so
+    ************************************
+    /home/user1/Openssl/openssl-1.0.2n/engines/
+    /home/user1/Openssl/openssl-1.0.2n/crypto/
+    /home/user1/Openssl/openssl-1.0.2n/include/
+    /home/user1/Openssl/openssl-1.0.2n/include/openssl/
+    /home/user1/Openssl/openssl-1.0.2n/crypto/asn1/
+    /home/user1/Openssl/openssl-1.0.2n/crypto/objects/
+    /home/user1/Openssl/openssl-1.0.2n/crypto/pkcs7/
+    /home/user1/Openssl/openssl-1.0.2n/crypto/x509/
 
 # USAGE
 
 1. Change directory to the location to be scanned
-2. Run the command `bdcustomscan.sh filter_file detect_options` where detect_options are any additional Synopsys Detect options required to run the scan. You do not need to specify the Hub URL or credentials as they are provided in the bdscanfocus.env file. For example `bdcustomscan myfilterfile.txt --detect.project.name=MyProject --detect.project.version.name=version1`.
+2. Run the command `bdcustomscan.sh filter_file detect_options` where detect_options are any additional Synopsys Detect options required to run the scan. You do not need to specify the Hub URL or credentials as they are provided in the bdscanfocus.env file.
 
-This will perform an offline Detect signature (file/folder) scan only, locate the output JSON file from the ~/blackduck/runs folder, filter the scan based on the filter_file and upload the results to the Hub server automatically.
+Example command:
 
+`bdcustomscan myfilterfile.txt --detect.project.name=MyProject --detect.project.version.name=version1`.
 
+This will download Synopsys Detect, perform an offline Signature (file/folder) scan only, locate the JSON file created by the scan from the ~/blackduck/runs folder, filter the scan based on the filter_file and upload the results to the Hub server automatically.
