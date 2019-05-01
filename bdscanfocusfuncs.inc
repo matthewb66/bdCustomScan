@@ -12,7 +12,7 @@ end () {
 }
 
 error () {
-	echo "ERROR: $*" >&2
+	printf "ERROR: $*\n" >&2
 	end 1
 }
 
@@ -20,7 +20,7 @@ get_auth_token() {
 	curl $CURLOPTS -X POST --header "Authorization: token $APICODE" --header "Accept:application/json" $HUBURL/api/tokens/authenticate > $TEMPFILE 2>/dev/null
 	if [ $? -ne 0 ] || [ ! -r $TEMPFILE ]
 	then
-		echo API request failure >&2
+		printf "API request failure\n" >&2
 		return -1
 	fi
 
@@ -33,8 +33,7 @@ api_call() {
 	curl $CURLOPTS -X GET --header "Authorization: Bearer $TOKEN" "$1" 2>/dev/null >$TEMPFILE
 	if [ $? -ne 0 ] || [ ! -r $TEMPFILE ]
 	then
-		( echo API Error:
-		echo  curl -X GET --header "Authorization: Bearer $TOKEN" "$1" ) >&2
+		printf "API Error:\ncurl -X GET --header 'Authorization: Bearer %s' %s\n" $TOKEN $1 >&2
 		return -1
 	fi
 
@@ -45,6 +44,52 @@ api_call() {
 	fi
 	
 	return $COUNT
+}
+
+proc_opts() {
+	PREVOPT=
+	for opt in $*
+	do
+		case $opt in
+			-filesonly)
+				FILESONLY=1
+				PREVOPT=$opt
+				;;
+			-focusfile|-excludepatterns|-jsonfile)
+				PREVOPT=$opt
+				;;
+			*)
+				if [ "$PREVOPT" == '-focusfile' ]
+				then
+					FOCUSFILE=$opt
+					if [ ! -r "$FOCUSFILE" ]
+					then
+						error "Focusfile $FOCUSFILE does not exist"
+					fi
+					PREVOPT=
+				#elif [ "$PREVOPT" == '-jsonfile' ]
+				#then
+				#	JSONFILE=$opt
+				#	if [ ! -r "$JSONFILE" ]
+				#	then
+				#		error "JSON file $JSONFILE does not exist"
+				#	fi
+				#	PREVOPT=
+				elif [ "$PREVOPT" == "-excludepatterns" ]
+				then
+					EXCLUDELIST=$opt
+					PREVOPT=
+				elif [ -z "$PREVOPT" ]
+				then
+					DETECTOPTS="$DETECTOPTS $opt"
+				fi
+		esac
+	done
+	
+	if [ -z "$FOCUSFILE" -a -z "$EXCLUDELIST" ]
+	then
+		error 'Please specify either "-focusfile focusfile" or "-excludepatterns patternlist" or both'
+	fi
 }
 
 check_prereqs() {

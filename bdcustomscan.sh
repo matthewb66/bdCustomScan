@@ -6,33 +6,19 @@ source "$BDSCANFOCUSDIR/bdscanfocusfuncs.inc"
 
 if [ $# -lt 1 ]
 then
-	error Usage: bdcustomscan.sh scanfocusfile [detect_opt1 detect_opt2]
+	error Usage: bdcustomscan.sh [-focusfile scanfocusfile] [-excludepatterns pattern1,pattern2] [detect_opt1 detect_opt2]
 fi
+
+FILESONLY=0
+EXCLUDEPATTERNS=
+FOCUSFILE=
+DETECTOPTS=
+proc_opts $*
 
 if [ -z "$APICODE" -o -z "$HUBURL" ]
 then
 	error "Please set the API code and BD Server URL"
 fi
-
-FILESONLY=0
-if [ "$1" == '-filesonly' ]
-then
-	FILESONLY=1
-	shift
-fi
-
-FOCUSFILE=$1
-if [ -z "$FOCUSFILE" ]
-then
-	error 'Please provide scanfocus file containing list of built files'
-fi
-if [ ! -r "$FOCUSFILE" ]
-then
-	error "Scanfocus file $FOCUSFILE does not exist"
-fi
-
-shift
-DETECTOPTS=$*
 
 TOKEN=$(get_auth_token)
 if [ $? -ne 0 ]
@@ -40,8 +26,8 @@ then
 	error "Unable to get API token"
 fi
 
-echo
-echo RUNNING DETECT SCRIPT IN OFFLINE MODE
+printf "\nRUNNING DETECT SCRIPT IN OFFLINE MODE\n"
+
 bash <(curl $CURLOPTS -s -L https://detect.synopsys.com/detect.sh) --detect.tools=SIGNATURE_SCAN --detect.blackduck.signature.scanner.host.url=$HUBURL $DETECTOPTS | tee ${TEMPFILE}_log
 if [ $? -ne 0 ]
 then
@@ -58,13 +44,23 @@ then
 	error "Detect JSON output file $JSONSCANFILE not found"
 fi
 
-echo
-echo PROCESSING SCAN OUTPUT
+printf "\nPROCESSING SCAN OUTPUT\n"
+
+SCANOPTS=
 if [ $FILESONLY -eq 1 ]
 then
-	FILESONLYOPT='-filesonly'
+	SCANOPTS='-filesonly'
 fi
-$BDSCANFOCUSDIR/focus_scan.sh $FILESONLYOPT $JSONSCANFILE $FOCUSFILE ${TEMPFILE}_mod.json
+if [ ! -z "$FOCUSFILE" ]
+then
+	SCANOPTS="$SCANOPTS -focusfile $FOCUSFILE"
+fi
+if [ ! -z "$EXCLUDEPATTERNS" ]
+then
+	SCANOPTS="$SCANOPTS -excludepatterns $EXCLUDELIST"
+fi
+
+$BDSCANFOCUSDIR/focus_scan.sh $SCANOPTS -jsonfile $JSONSCANFILE -jsonout ${TEMPFILE}_mod.json
 if [ $? -ne 0 ]
 then
 	error "focus_scan.sh script did not run correctly"
@@ -75,8 +71,8 @@ then
 	error "focus_scan.sh output JSON file missing"
 fi
 
-echo
-echo UPLOADING MODIFIED SCAN RESULTS
+printf "\nUPLOADING MODIFIED SCAN RESULTS\n"
+
 curl $CURLOPTS -X POST "${HUBURL}/api/scan/data/?mode=replace" \
 -H "Authorization: Bearer $TOKEN" \
 -H 'Content-Type: application/ld+json' \
@@ -84,9 +80,8 @@ curl $CURLOPTS -X POST "${HUBURL}/api/scan/data/?mode=replace" \
 --data-binary "@${TEMPFILE}_mod.json"
 if [ $? -ne 0 ]
 then
-	error "Unable to upload data to server $HUBURL"
+	error "Unable to upload scan data to server $HUBURL"
 fi
 
-echo 
-echo SCAN UPLOADED SUCCESSFULLY
+printf "\nSCAN UPLOADED SUCCESSFULLY\n"
 end 0
