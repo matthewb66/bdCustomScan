@@ -49,7 +49,7 @@ See below for more information about the filter file and pattern definition.
 Create a filter file containing a list of either files or folders which you want to use to focus the scan.
 This could be a list of compiled source files.
 
-The entries must either be absolute (starting with /) or relative (starting with ./) and can either be folders (terminated with /) or files. Lines in the filter file not starting with / or ./ will be ignored.
+The entries must either be absolute (starting with /) or relative (starting with ./) and can either be folders (terminated with /) or files. Lines in the filter file not starting with / or ./ will be ignored. Relative paths must match the location where Detect is executed (for example if you run detect in /usr/user/code but the file contains relative paths starting from /usr/local such as ./code/myfolder/myfile.cpp the scan filter will not work correctly and you may end up with a blank scan).
 
 All parent paths for each entry will be added to the filter list, for example if the entry `./myproject/myfolder/file.cpp` is added to the file, then the folders `./, ./myproject/ and ./myproject/myfolder/` will automatically be added to the list of folders to be included in the scan.
 ## Example Filter Files
