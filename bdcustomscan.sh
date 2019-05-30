@@ -60,7 +60,7 @@ then
 	SCANOPTS="$SCANOPTS -excludepatterns $EXCLUDELIST"
 fi
 
-$BDSCANFOCUSDIR/focus_scan.sh $SCANOPTS -jsonfile $JSONSCANFILE -jsonout ${TEMPFILE}_mod.json
+"$BDSCANFOCUSDIR/focus_scan.sh" $SCANOPTS -jsonfile $JSONSCANFILE -jsonout ${TEMPFILE}_mod.json
 if [ $? -ne 0 ]
 then
 	error "focus_scan.sh script did not run correctly"
