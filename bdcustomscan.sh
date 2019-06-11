@@ -57,7 +57,7 @@ then
 fi
 if [ ! -z "$EXCLUDEPATTERNS" ]
 then
-	SCANOPTS="$SCANOPTS -excludepatterns $EXCLUDELIST"
+	SCANOPTS="$SCANOPTS -excludepatterns $EXCLUDEPATTERNS"
 fi
 
 "$BDSCANFOCUSDIR/focus_scan.sh" $SCANOPTS -jsonfile $JSONSCANFILE -jsonout ${TEMPFILE}_mod.json
