@@ -4,15 +4,32 @@
 BDSCANFOCUSDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 source "$BDSCANFOCUSDIR/bdscanfocus.env"
 TEMPFILE=/tmp/bds$$
+DEBUG=
+LOGFILE=bdcustomscan.log
 
 end () {
 	rm -f $TEMPFILE ${TEMPFILE}_*
-	rm -f outstream.pdf
 	exit $1
 }
 
+msg () {
+	FORMAT="$1"
+	shift
+	if [ "$DEBUG" == "1" ]
+	then
+		printf "$FORMAT" $* >> $LOGFILE
+	fi
+	printf "$FORMAT" $*
+}
+
 error () {
-	printf "ERROR: $*\n" >&2
+	FORSTRING="ERROR: $1"
+	shift
+	printf "$FORSTRING" $* >&2
+	if [ "$DEBUG" == "1" ]
+	then
+		printf "$FORSTRING" $* >> $LOGFILE
+	fi
 	end 1
 }
 
@@ -20,7 +37,7 @@ get_auth_token() {
 	curl $CURLOPTS -X POST --header "Authorization: token $APICODE" --header "Accept:application/json" $HUBURL/api/tokens/authenticate > $TEMPFILE 2>/dev/null
 	if [ $? -ne 0 ] || [ ! -r $TEMPFILE ]
 	then
-		printf "API request failure\n" >&2
+		msg "API request failure\n"
 		return -1
 	fi
 
@@ -33,7 +50,7 @@ api_call() {
 	curl $CURLOPTS -X GET --header "Authorization: Bearer $TOKEN" "$1" 2>/dev/null >$TEMPFILE
 	if [ $? -ne 0 ] || [ ! -r $TEMPFILE ]
 	then
-		printf "API Error:\ncurl -X GET --header 'Authorization: Bearer %s' %s\n" $TOKEN $1 >&2
+		msg "API Error:\ncurl -X GET --header 'Authorization: Bearer %s' %s\n" $TOKEN $1
 		return -1
 	fi
 
@@ -53,7 +70,12 @@ proc_opts() {
 		case $opt in
 			-filesonly)
 				FILESONLY=1
-				PREVOPT=$opt
+				PREVOPT=
+				;;
+			-debug)
+				DEBUG=1
+				> $LOGFILE
+				PREVOPT=
 				;;
 			-focusfile|-excludepatterns|-jsonfile)
 				PREVOPT=$opt
@@ -64,7 +86,7 @@ proc_opts() {
 					FOCUSFILE=$opt
 					if [ ! -r "$FOCUSFILE" ]
 					then
-						error "Focusfile $FOCUSFILE does not exist"
+						error "Focusfile %s does not exist\n" $FOCUSFILE
 					fi
 					PREVOPT=
 				#elif [ "$PREVOPT" == '-jsonfile' ]
@@ -72,7 +94,7 @@ proc_opts() {
 				#	JSONFILE=$opt
 				#	if [ ! -r "$JSONFILE" ]
 				#	then
-				#		error "JSON file $JSONFILE does not exist"
+				#		error "JSON file %s does not exist\n" $JSONFILE
 				#	fi
 				#	PREVOPT=
 				elif [ "$PREVOPT" == "-excludepatterns" ]
@@ -88,7 +110,7 @@ proc_opts() {
 	
 	if [ -z "$FOCUSFILE" -a -z "$EXCLUDELIST" ]
 	then
-		error 'Please specify either "-focusfile focusfile" or "-excludepatterns patternlist" or both'
+		error 'Please specify either "-focusfile focusfile" or "-excludepatterns patternlist" or both\n'
 	fi
 }
 
@@ -98,45 +120,67 @@ check_prereqs() {
 	#if [ -z "$TEST" -o "$TEST" != '100' ]
 	if [ $? -ne 0 ]
 	then
-		echo "jq package required - please install before continuing" >&2
+		msg "jq package required - please install before continuing\n"
 		return -1
 	fi
 	hash curl 2>/dev/null
 	if [ $? -ne 0 ]
 	then
-		echo "curl package required - please install before continuing" >&2
+		msg "curl package required - please install before continuing\n"
 		return -1
 	fi
 	hash awk 2>/dev/null
 	if [ $? -ne 0 ]
 	then
-		echo "awk package required - please install before continuing" >&2
+		msg "awk package required - please install before continuing\n"
 		return -1
 	fi
 	hash sed 2>/dev/null
 	if [ $? -ne 0 ]
 	then
-		echo "sed package required - please install before continuing" >&2
+		msg "sed package required - please install before continuing\n"
 		return -1
 	fi
 	hash tr 2>/dev/null
 	if [ $? -ne 0 ]
 	then
-		echo "tr package required - please install before continuing" >&2
+		msg "tr package required - please install before continuing\n"
 		return -1
 	fi
 	hash sort 2>/dev/null
 	if [ $? -ne 0 ]
 	then
-		echo "sort package required - please install before continuing" >&2
+		msg "sort package required - please install before continuing\n"
 		return -1
 	fi
 	
 	return 0
 }
 
+debugmsg () {
+	if [ "$DEBUG" == "1" ]
+	then
+		echo "$*" >> $LOGFILE
+	fi
+}
+
+debugfile () {
+	if [ "$DEBUG" == "1" ]
+	then
+		if [ $# -ne 2 ]
+		then
+			return
+		fi
+		if [ -r "$1" -a ! -r "$2" ] 
+		then
+			cp "$1" "$2"
+			printf "Copied file %s to %s\n" "$1" "$2" >> $LOGFILE
+		fi
+	fi	
+}
+
 check_prereqs
 if [ $? -ne 0 ]
 then
-	error "Missing prerequisites"
+	error "Missing prerequisites\n"
 fi

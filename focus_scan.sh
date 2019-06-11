@@ -5,27 +5,40 @@ FILESONLY=0
 EXCLUDEPATTERNS=
 FOCUSFILE=
 DETECTOPTS=
+FSDEBUG=0
+LOGFILE=focus_scan.log
 
-TEMPFILE=/tmp/rd$$
+FSTEMPFILE=/tmp/rd$$
 
-end () {
-	rm -f $TEMPFILE ${TEMPFILE}_*
+fsend () {
+	rm -f $FSTEMPFILE ${FSTEMPFILE}_*
 	exit $1
 }
 
-error () {
-	echo "ERROR: $*" >&2
-	end 1
+fserror () {
+	FORSTRING="ERROR: $1"
+	shift
+	printf "$FORSTRING" $* >&2
+	if [ "$FSDEBUG" == "1" ]
+	then
+		printf "$FORSTRING" $* >> $LOGFILE
+	fi
+	fsend 1
 }
 
-proc_opts() {
+fsproc_opts() {
 	PREVOPT=
 	for opt in $*
 	do
 		case $opt in
 			-filesonly)
 				FILESONLY=1
-				PREVOPT=$opt
+				PREVOPT=
+				;;
+			-debug)
+				FSDEBUG=1
+				> $LOGFILE
+				PREVOPT=
 				;;
 			-focusfile|-excludepatterns|-jsonfile|-jsonout)
 				PREVOPT=$opt
@@ -36,7 +49,7 @@ proc_opts() {
 					FOCUSFILE=$opt
 					if [ ! -r "$FOCUSFILE" ]
 					then
-						error "Focusfile $FOCUSFILE does not exist"
+						fserror "Focusfile %s does not exist\n" $FOCUSFILE
 					fi
 					PREVOPT=
 				elif [ "$PREVOPT" == '-jsonfile' ]
@@ -44,7 +57,7 @@ proc_opts() {
 					JSONFILE=$opt
 					if [ ! -r "$JSONFILE" ]
 					then
-						error "JSON file $JSONFILE does not exist"
+						fserror "JSON file %s does not exist\n" $JSONFILE
 					fi
 					PREVOPT=
 				elif [ "$PREVOPT" == '-jsonout' ]
@@ -52,7 +65,7 @@ proc_opts() {
 					JSONOUT=$opt
 					if [ -r "$JSONOUT" ]
 					then
-						error "JSON output file $JSONOUT exists"
+						fserror "JSON output file %s exists\n" $JSONOUT
 					fi
 					PREVOPT=
 				elif [ "$PREVOPT" == "-excludepatterns" ]
@@ -69,21 +82,56 @@ proc_opts() {
 	
 	if [ -z "$FOCUSFILE" -a -z "$EXCLUDELIST" ]
 	then
-		error 'Please specify either "-focusfile focusfile" or "-excludepatterns patternlist" or both'
+		fserror 'Please specify either "-focusfile focusfile" or "-excludepatterns patternlist" or both\n'
 	fi
 }
 
+fsdebugmsg () {
+	FORMAT="$1"
+	shift
+	if [ "$FSDEBUG" == "1" ]
+	then
+		printf "$FORMAT" $* >> $LOGFILE
+	fi
+}
+
+fsdebugfile () {
+	if [ "$FSDEBUG" == "1" ]
+	then
+		if [ $# -ne 2 ]
+		then
+			return
+		fi
+		if [ -r "$1" -a ! -r "$2" ] 
+		then
+			cp "$1" "$2"
+			printf "Copied file %s to %s\n" "$1" "$2" >> $LOGFILE
+		fi
+	fi	
+}
+
+fsmsg () {
+	FORMAT="$1"
+	shift
+	if [ "$FSDEBUG" == "1" ]
+	then
+		printf "$FORMAT" $* >> $LOGFILE
+	fi
+	printf "$FORMAT" $*
+}
+
+fsdebugmsg "focus_scan.sh called with arguments '%s'\n" $*
 if [ $# -lt 2 ]
 then
-	printf "Usage: focus_scan.sh [-filesonly] -jsonfile jsonfile [-focusfile filelist|-excludepatterns patt1,patt2] [-jsonout outputfile]\n"
-	end 1
+	fsmsg "Usage: focus_scan.sh [-filesonly] -jsonfile jsonfile [-focusfile filelist|-excludepatterns patt1,patt2] [-jsonout outputfile]\n"
+	fsend 1
 fi
 
-proc_opts $*
+fsproc_opts $*
 
 if [ ! -r "$JSONFILE" ]
 then
-	error "No json file specified"
+	fserror "No json file specified\n"
 fi
 
 if [ -z "$JSONOUT" ]
@@ -93,18 +141,25 @@ else
 	OUTFILE=$JSONOUT
 fi
 
-printf "Filelist file: \t\t%s\n" $FOCUSFILE
-printf "Input JSON file: \t%s\n" $JSONFILE
-printf "Output JSON file: \t%s\n" $OUTFILE
-printf "Exclude pattern: \t%s\n" $EXCLUDELIST
+fsmsg "Filelist file: \t\t%s\n" $FOCUSFILE
+fsmsg "Input JSON file: \t%s\n" $JSONFILE
+fsmsg "Output JSON file: \t%s\n" $OUTFILE
+fsmsg "Exclude pattern: \t%s\n" $EXCLUDEPATTERNS
+fsdebugmsg "FILESONLY=$FILESONLY\n"
+
 if [ $FILESONLY -eq 1 ]
 then
-	printf "Will process files only from filelist file\n"
+	fsmsg "Will process files only from filelist file\n"
 fi
 # Process JSON file
-jq . $JSONFILE > ${TEMPFILE}_json
+jq . "$JSONFILE" > "${FSTEMPFILE}_json"
+if [ ! -r "${FSTEMPFILE}_json" ]
+then
+	fserror "Unable to run jq on %s\n" $JSONFILE
+fi
+fsdebugmsg "Created %s output file from jq\n" "${FSTEMPFILE}_json"
 
-#cp ${TEMPFILE}_json scan.json
+fsdebugfile ${FSTEMPFILE}_json focus_scan_scanin.json
 if [ ! -z "$FOCUSFILE" ]
 then
 	# Process the listfile
@@ -114,12 +169,12 @@ then
 	if [ $FILESONLY -eq 0 ]
 	then
 		# Remove filenames leaving only folders
-		cat $FOCUSFILE | tr -d '\r' | grep '^\./' | sed -e 's:^\./::' -e 's:/[^/]*$:/:' | sort -u > $TEMPFILE
+		cat "$FOCUSFILE" | tr -d '\r' | grep '^\./' | sed -e 's:^\./::' -e 's:/[^/]*$:/:' | sort -u > "$FSTEMPFILE"
 	else
-		cat $FOCUSFILE | tr -d '\r' | grep '^\./' | sed -e 's:^\./::' | sort -u > $TEMPFILE
+		cat "$FOCUSFILE" | tr -d '\r' | grep '^\./' | sed -e 's:^\./::' | sort -u > "$FSTEMPFILE"
 	fi
 
-	LINES=`cat $TEMPFILE | wc -l`
+	LINES=`cat "$FSTEMPFILE" | wc -l`
 	if [ $LINES -lt 1 ]
 	then
 		#
@@ -128,34 +183,36 @@ then
 		if [ $FILESONLY -eq 0 ]
 		then
 			# Remove filenames leaving only folders
-			cat $FOCUSFILE | tr -d '\r' | grep '^/' | sed -e "s:^${THISDIR}/::" -e 's:/[^/]*$:/:' | sort -u > $TEMPFILE
+			cat "$FOCUSFILE" | tr -d '\r' | grep '^/' | sed -e "s:^${THISDIR}/::" -e 's:/[^/]*$:/:' | sort -u > "$FSTEMPFILE"
 		else
-			cat $FOCUSFILE | tr -d '\r' | grep '^/' | sed -e "s:^${THISDIR}/::" | sort -u > $TEMPFILE
+			cat "$FOCUSFILE" | tr -d '\r' | grep '^/' | sed -e "s:^${THISDIR}/::" | sort -u > "$FSTEMPFILE"
 		fi
 
-		LINES=`cat $TEMPFILE | wc -l`
+		LINES=`cat "$FSTEMPFILE" | wc -l`
 		if [ $LINES -lt 1 ]
 		then
-			error "Unable to process scan focus file $FOCUSFILE - please ensure file locations start with ./ or /"
+			fserror "Unable to process scan focus file %s - please ensure file locations start with ./ or /\n" $FOCUSFILE
 		fi
 	fi
+	fsdebugfile "$FSTEMPFILE" focus_scan_focusfileprocessed.txt
+	fsdebugmsg "Processed focus file has %s lines\n" $LINES
 
 	# Now check that first entry exists in JSON file
-	read FILECHECK < $TEMPFILE
+	read FILECHECK < "$FSTEMPFILE"
 
-	FOUNDINJSON="`grep '"path"' ${TEMPFILE}_json | cut -f4 -d'"' | grep $FILECHECK | sed -n '1p'`"
+	FOUNDINJSON="`grep '"path"' ${FSTEMPFILE}_json | cut -f4 -d'"' | grep \"$FILECHECK\" | sed -n '1p'`"
 	if [ -z "$FOUNDINJSON" ]
 	then
-		error "Cannot process JSON file"
+		fserror "Cannot process JSON file\n"
 	fi
 
 	if [ "$FOUNDINJSON" != "$FILECHECK" ]
 	then
 		# Cannot find first entry from listfile in JSON
-		error "Cannot find first entry from listfile in JSON file"
+		fserror "Cannot find first entry from listfile in JSON file\n"
 	fi
 
-printf "Processing focus file ...\n"
+fsmsg "Processing focus file ...\n"
 awk '
 BEGIN {
 	blocklinecount=0
@@ -197,13 +254,14 @@ FILENAME==ARGV[2] {
 				if (outputblocks>1) {
 					print "},"
 				}
-				for (i=0; i<length(storedlines); i++) {
-					print storedlines[i]
+				i=0
+				for (a in storedlines) {
+					print storedlines[i++]
 				}
 			}
 			else {
 				removedblocks++
-				if ((removedblocks%1000) == 0) printf("Scan Entries Processed/Removed/Retained = %d/%d/%d\033[1A\n", allblocks, removedblocks, allblocks - removedblocks) > "/dev/tty"
+				#if ((removedblocks%1000) == 0) printf("Scan Entries Processed/Removed/Retained = %d/%d/%d\033[1A\n", allblocks, removedblocks, allblocks - removedblocks) > "/dev/tty"
 			}
 			
 			blocklinecount=0
@@ -238,8 +296,9 @@ FILENAME==ARGV[2] {
 
 	if ( $0 ~ /],/) {
 		if (printblock == 1) {
-			for (i=0; i<length(storedlines)-1; i++) {
-				print storedlines[i]
+			i=0
+			for (a in storedlines) {
+				print storedlines[i++]
 			}
 		}
 		print "}"
@@ -250,17 +309,22 @@ FILENAME==ARGV[2] {
 
 END {
 	printf("Scan Entries Processed/Removed/Retained = %d/%d/%d\n", allblocks, removedblocks, allblocks - removedblocks) > "/dev/tty"
-} ' $TEMPFILE ${TEMPFILE}_json > ${TEMPFILE}_out
+} ' "$FSTEMPFILE" "${FSTEMPFILE}_json" > "${FSTEMPFILE}_out"
+	if [ $? -ne 0 ]
+	then
+		fserror "Awk for filelist failed\n"
+	fi
+	fsdebugfile "${FSTEMPFILE}_out" focus_scan_awk1.out
 fi
 
 #
 # Create the file match string
 if [ ! -z "$EXCLUDELIST" ]
 then
-	printf "Processing exclusion patterns ...\n"
-	if [ ! -z "$FOCUSFILE" -a -r "${TEMPFILE}_out" ]
+	fsmsg "Processing exclusion patterns ...\n"
+	if [ ! -z "$FOCUSFILE" -a -r "${FSTEMPFILE}_out" ]
 	then
-		mv ${TEMPFILE}_out ${TEMPFILE}_json
+		mv "${FSTEMPFILE}_out" "${FSTEMPFILE}_json"
 	fi
 	
 awk '
@@ -285,8 +349,9 @@ FILENAME==ARGV[1] {
 				if (outputblocks>1) {
 					print "},"
 				}
-				for (i=0; i<length(storedlines); i++) {
-					print storedlines[i]
+				i=0
+				for (a in storedlines) {
+					print storedlines[i++]
 				}
 			}
 			else {
@@ -321,8 +386,9 @@ FILENAME==ARGV[1] {
 
 	if ( $0 ~ /],/) {
 		if (printblock == 1) {
-			for (i=0; i<length(storedlines)-1; i++) {
-				print storedlines[i]
+			i=0
+			for (a in storedlines) {
+				print storedlines[i++]
 			}
 		}
 		print "}"
@@ -333,7 +399,20 @@ FILENAME==ARGV[1] {
 
 END {
 	printf("Scan Entries Processed/Removed/Retained = %d/%d/%d\n", allblocks, removedblocks, allblocks - removedblocks) > "/dev/tty"
-} ' ${TEMPFILE}_json > $OUTFILE
+} ' "${FSTEMPFILE}_json" > "${FSTEMPFILE}_out"
+	if [ $? -ne 0 ]
+	then
+		fserror "Awk for filelist failed\n"
+	fi
+	fsdebugfile "${FSTEMPFILE}_out" focus_scan_awk2.out
 fi
 
-end 0
+if [ -r "${FSTEMPFILE}_out" ]
+then
+	cp -f "${FSTEMPFILE}_out" "$OUTFILE"
+else
+	fserror "No output file created from awk executions\n"
+fi
+
+fsdebugmsg "focus_scan.sh completed successfully\n"
+fsend 0
