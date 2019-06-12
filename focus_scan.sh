@@ -2,7 +2,7 @@
 # v1.0
 #
 FILESONLY=0
-EXCLUDEPATTERNS=
+EXCLUDELIST=
 FOCUSFILE=
 DETECTOPTS=
 
@@ -334,6 +334,8 @@ FILENAME==ARGV[1] {
 END {
 	printf("Scan Entries Processed/Removed/Retained = %d/%d/%d\n", allblocks, removedblocks, allblocks - removedblocks) > "/dev/tty"
 } ' ${TEMPFILE}_json > $OUTFILE
+else
+	cp ${TEMPFILE}_out $OUTFILE
 fi
 
 end 0
