@@ -6,8 +6,8 @@ EXCLUDEPATTERNS=
 FOCUSFILE=
 DETECTOPTS=
 FSDEBUG=0
-LOGFILE=focus_scan.log
-
+LOGFILE=DEBUG_focus_scan.log
+rm -f $LOGFILE
 FSTEMPFILE=/tmp/rd$$
 
 fsend () {
@@ -16,12 +16,11 @@ fsend () {
 }
 
 fserror () {
-	FORSTRING="ERROR: $1"
-	shift
-	printf "$FORSTRING" $* >&2
+	FORSTRING="ERROR: $*"
+	printf "$FORSTRING" >&2
 	if [ "$FSDEBUG" == "1" ]
 	then
-		printf "$FORSTRING" $* >> $LOGFILE
+		printf "$FORSTRING" >> $LOGFILE
 	fi
 	fsend 1
 }
@@ -49,7 +48,7 @@ fsproc_opts() {
 					FOCUSFILE=$opt
 					if [ ! -r "$FOCUSFILE" ]
 					then
-						fserror "Focusfile %s does not exist\n" $FOCUSFILE
+						fserror "Focusfile $FOCUSFILE does not exist\n"
 					fi
 					PREVOPT=
 				elif [ "$PREVOPT" == '-jsonfile' ]
@@ -57,7 +56,7 @@ fsproc_opts() {
 					JSONFILE=$opt
 					if [ ! -r "$JSONFILE" ]
 					then
-						fserror "JSON file %s does not exist\n" $JSONFILE
+						fserror "JSON file $JSONFILE does not exist\n"
 					fi
 					PREVOPT=
 				elif [ "$PREVOPT" == '-jsonout' ]
@@ -65,7 +64,7 @@ fsproc_opts() {
 					JSONOUT=$opt
 					if [ -r "$JSONOUT" ]
 					then
-						fserror "JSON output file %s exists\n" $JSONOUT
+						fserror "JSON output file $JSONOUT exists\n"
 					fi
 					PREVOPT=
 				elif [ "$PREVOPT" == "-excludepatterns" ]
@@ -87,11 +86,11 @@ fsproc_opts() {
 }
 
 fsdebugmsg () {
-	FORMAT="$1"
+	STRING="$1"
 	shift
 	if [ "$FSDEBUG" == "1" ]
 	then
-		printf "$FORMAT" $* >> $LOGFILE
+		printf "$STRING" >> $LOGFILE
 	fi
 }
 
@@ -102,25 +101,24 @@ fsdebugfile () {
 		then
 			return
 		fi
-		if [ -r "$1" -a ! -r "$2" ] 
+		if [ -r "$1" ] 
 		then
-			cp "$1" "$2"
-			printf "Copied file %s to %s\n" "$1" "$2" >> $LOGFILE
+			cp -f "$1" "DEBUG_$2"
+			printf "Copied file %s to %s\n" "$1" "DEBUG_$2" >> $LOGFILE
 		fi
 	fi	
 }
 
 fsmsg () {
-	FORMAT="$1"
-	shift
+	STRING="$1"
 	if [ "$FSDEBUG" == "1" ]
 	then
-		printf "$FORMAT" $* >> $LOGFILE
+		printf "$STRING" >> $LOGFILE
 	fi
-	printf "$FORMAT" $*
+	printf "$STRING"
 }
 
-fsdebugmsg "focus_scan.sh called with arguments '%s'\n" $*
+fsdebugmsg "focus_scan.sh called with arguments '$*'\n"
 if [ $# -lt 2 ]
 then
 	fsmsg "Usage: focus_scan.sh [-filesonly] -jsonfile jsonfile [-focusfile filelist|-excludepatterns patt1,patt2] [-jsonout outputfile]\n"
@@ -141,10 +139,10 @@ else
 	OUTFILE=$JSONOUT
 fi
 
-fsmsg "Filelist file: \t\t%s\n" $FOCUSFILE
-fsmsg "Input JSON file: \t%s\n" $JSONFILE
-fsmsg "Output JSON file: \t%s\n" $OUTFILE
-fsmsg "Exclude pattern: \t%s\n" $EXCLUDEPATTERNS
+fsmsg "Filelist file: \t\t$FOCUSFILE\n" 
+fsmsg "Input JSON file: \t$JSONFILE\n" 
+fsmsg "Output JSON file: \t$OUTFILE\n" 
+fsmsg "Exclude pattern: \t$EXCLUDEPATTERNS\n" 
 fsdebugmsg "FILESONLY=$FILESONLY\n"
 
 if [ $FILESONLY -eq 1 ]
@@ -155,9 +153,9 @@ fi
 jq . "$JSONFILE" > "${FSTEMPFILE}_json"
 if [ ! -r "${FSTEMPFILE}_json" ]
 then
-	fserror "Unable to run jq on %s\n" $JSONFILE
+	fserror "Unable to run jq on $JSONFILE\n" 
 fi
-fsdebugmsg "Created %s output file from jq\n" "${FSTEMPFILE}_json"
+fsdebugmsg "Created ${FSTEMPFILE}_json output file from jq\n"
 
 fsdebugfile ${FSTEMPFILE}_json focus_scan_scanin.json
 if [ ! -z "$FOCUSFILE" ]
@@ -191,25 +189,21 @@ then
 		LINES=`cat "$FSTEMPFILE" | wc -l`
 		if [ $LINES -lt 1 ]
 		then
-			fserror "Unable to process scan focus file %s - please ensure file locations start with ./ or /\n" $FOCUSFILE
+			fserror "Unable to process scan focus file $FOCUSFILE - please ensure file locations start with ./ or /\n" 
 		fi
 	fi
 	fsdebugfile "$FSTEMPFILE" focus_scan_focusfileprocessed.txt
-	fsdebugmsg "Processed focus file has %s lines\n" $LINES
+	fsdebugmsg "Processed focus file has $LINES lines\n" 
 
 	# Now check that first entry exists in JSON file
 	read FILECHECK < "$FSTEMPFILE"
+	fsdebugmsg "FILECHECK=$FILECHECK\n" 
 
-	FOUNDINJSON="`grep '"path"' ${FSTEMPFILE}_json | cut -f4 -d'"' | grep \"$FILECHECK\" | sed -n '1p'`"
+	FOUNDINJSON="`grep '"path"' ${FSTEMPFILE}_json | cut -f4 -d'"' | grep \"^$FILECHECK\$\"`"
+	fsdebugmsg "FOUNDINJSON=$FOUNDINJSON\n"
 	if [ -z "$FOUNDINJSON" ]
 	then
 		fserror "Cannot process JSON file\n"
-	fi
-
-	if [ "$FOUNDINJSON" != "$FILECHECK" ]
-	then
-		# Cannot find first entry from listfile in JSON
-		fserror "Cannot find first entry from listfile in JSON file\n"
 	fi
 
 fsmsg "Processing focus file ...\n"
