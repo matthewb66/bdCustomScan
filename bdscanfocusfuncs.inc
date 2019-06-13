@@ -5,7 +5,8 @@ BDSCANFOCUSDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd 
 source "$BDSCANFOCUSDIR/bdscanfocus.env"
 TEMPFILE=/tmp/bds$$
 DEBUG=
-LOGFILE=bdcustomscan.log
+LOGFILE=DEBUG_bdcustomscan.log
+rm -f $LOGFILE
 
 end () {
 	rm -f $TEMPFILE ${TEMPFILE}_*
@@ -13,22 +14,20 @@ end () {
 }
 
 msg () {
-	FORMAT="$1"
-	shift
+	STRING="$*"
 	if [ "$DEBUG" == "1" ]
 	then
-		printf "$FORMAT" $* >> $LOGFILE
+		printf "$STRING" >> $LOGFILE
 	fi
-	printf "$FORMAT" $*
+	printf "$STRING"
 }
 
 error () {
-	FORSTRING="ERROR: $1"
-	shift
-	printf "$FORSTRING" $* >&2
+	FORSTRING="ERROR: $*"
+	printf "$FORSTRING" >&2
 	if [ "$DEBUG" == "1" ]
 	then
-		printf "$FORSTRING" $* >> $LOGFILE
+		printf "$FORSTRING" >> $LOGFILE
 	fi
 	end 1
 }
@@ -50,7 +49,7 @@ api_call() {
 	curl $CURLOPTS -X GET --header "Authorization: Bearer $TOKEN" "$1" 2>/dev/null >$TEMPFILE
 	if [ $? -ne 0 ] || [ ! -r $TEMPFILE ]
 	then
-		msg "API Error:\ncurl -X GET --header 'Authorization: Bearer %s' %s\n" $TOKEN $1
+		msg "API Error:\ncurl -X GET --header 'Authorization: Bearer $TOKEN' $1"
 		return -1
 	fi
 
@@ -86,7 +85,7 @@ proc_opts() {
 					FOCUSFILE=$opt
 					if [ ! -r "$FOCUSFILE" ]
 					then
-						error "Focusfile %s does not exist\n" $FOCUSFILE
+						error "Focusfile $FOCUSFILE does not exist\n"
 					fi
 					PREVOPT=
 				#elif [ "$PREVOPT" == '-jsonfile' ]
@@ -94,7 +93,7 @@ proc_opts() {
 				#	JSONFILE=$opt
 				#	if [ ! -r "$JSONFILE" ]
 				#	then
-				#		error "JSON file %s does not exist\n" $JSONFILE
+				#		error "JSON file $JSONFILE does not exist\n"
 				#	fi
 				#	PREVOPT=
 				elif [ "$PREVOPT" == "-excludepatterns" ]
@@ -171,10 +170,10 @@ debugfile () {
 		then
 			return
 		fi
-		if [ -r "$1" -a ! -r "$2" ] 
+		if [ -r "$1" ] 
 		then
-			cp "$1" "$2"
-			printf "Copied file %s to %s\n" "$1" "$2" >> $LOGFILE
+			cp -f "$1" "DEBUG_$2"
+			printf "Copied file %s to %s\n" "$1" "DEBUG_$2" >> $LOGFILE
 		fi
 	fi	
 }
