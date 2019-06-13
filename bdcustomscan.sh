@@ -13,7 +13,7 @@ FILESONLY=0
 EXCLUDEPATTERNS=
 FOCUSFILE=
 DETECTOPTS=
-debugmsg "bdcustomscan.sh started with options $*\n"
+debugmsg "bdcustomscan.sh started with options '%s'\n" "$*"
 proc_opts $*
 
 if [ -z "$APICODE" -o -z "$HUBURL" ]
@@ -27,35 +27,34 @@ debugmsg "APICODE=$APICODE"
 TOKEN=$(get_auth_token)
 if [ $? -ne 0 ]
 then
-	debugmsg "Returned API token = $TOKEN\n"
-	error "Unable to get API token\n"
+	debugmsg "Returned API token = $TOKEN"
+	error "Unable to get API token"
 fi
-debugmsg "Returned API token = $TOKEN\n"
+debugmsg "Returned API token = $TOKEN"
 
 msg "\nRUNNING DETECT SCRIPT IN OFFLINE MODE\n"
 
-debugmsg "Running command 'bash <(curl $CURLOPTS -s -L https://detect.synopsys.com/detect.sh) --detect.tools=SIGNATURE_SCAN --detect.blackduck.signature.scanner.host.url=$HUBURL $DETECTOPTS'\n"
+debugmsg "Running command 'bash <(curl $CURLOPTS -s -L https://detect.synopsys.com/detect.sh) --detect.tools=SIGNATURE_SCAN --detect.blackduck.signature.scanner.host.url=$HUBURL $DETECTOPTS'"
 bash <(curl $CURLOPTS -s -L https://detect.synopsys.com/detect.sh) --detect.tools=SIGNATURE_SCAN --detect.blackduck.signature.scanner.host.url=$HUBURL $DETECTOPTS | tee ${TEMPFILE}_log
 if [ $? -ne 0 ]
 then
-	error "Detect script failed\n"
+	error "Detect script failed"
 fi
 
-debugmsg "Detect completed successfully\n"
+debugmsg "Detect completed successfully"
 debugfile "${TEMPFILE}_log" bdcustomscan_detect.log
-debugmsg "Output file line from detect log = '`grep -E 'INFO: Creating data output file:.*\.json$' ${TEMPFILE}_log`'\n"
+debugmsg "Output file line from detect log = '"`grep -E 'INFO: Creating data output file:.*\.json$' ${TEMPFILE}_log`
 
 JSONSCANFILE="`grep -E 'INFO: Creating data output file:.*\.json$' ${TEMPFILE}_log | cut -f14 -d' '`"
 if [ -z "$JSONSCANFILE" ]
 then
-	error "Cannot extract JSON output file from detect log\n"
+	error "Cannot extract JSON output file from detect log"
 fi
 if [ ! -r "$JSONSCANFILE" ]
 then
-	error "Detect JSON output file $JSONSCANFILE not found\n"
+	error "Detect JSON output file $JSONSCANFILE not found"
 fi
-debugmsg "JSONSCANFILE=$JSONSCANFILE\n"
-debugfile "$JSONSCANFILE" bdcustomscan_scanin.json
+debugmsg "JSONSCANFILE=$JSONSCANFILE"
 msg "\nPROCESSING SCAN OUTPUT\n"
 
 SCANOPTS=
@@ -77,20 +76,20 @@ if [ "$DEBUG" == "1" ]
 then
 	DEBUGOPT='-debug'
 fi
-debugmsg "Running command 'focus_scan.sh $DEBUGOPT $SCANOPTS -jsonfile $JSONSCANFILE -jsonout ${TEMPFILE}_mod.json'\n"
+debugmsg "Running command 'focus_scan.sh $DEBUGOPT $SCANOPTS -jsonfile $JSONSCANFILE -jsonout ${TEMPFILE}_mod.json'"
 
 "$BDSCANFOCUSDIR/focus_scan.sh" $DEBUGOPT $SCANOPTS -jsonfile "$JSONSCANFILE" -jsonout "${TEMPFILE}_mod.json"
 if [ $? -ne 0 ]
 then
-	error "focus_scan.sh script did not run correctly\n"
+	error "focus_scan.sh script did not run correctly"
 fi
 
 if [ ! -r "${TEMPFILE}_mod.json" ]
 then
-	error "focus_scan.sh output JSON file missing\n"
+	error "focus_scan.sh output JSON file missing"
 fi
-debugmsg "focus_scan.sh completed successfully\n"
-debugfile "${TEMPFILE}_mod.json" bdcustomscan_scanout.json
+debugmsg "focus_scan.sh completed successfully"
+debugfile "${TEMPFILE}_mod.json" bdcustomscan_scanmod.json
 
 msg "\nUPLOADING MODIFIED SCAN RESULTS\n"
 
@@ -98,7 +97,7 @@ debugmsg "Running command 'curl $CURLOPTS -X POST '${HUBURL}/api/scan/data/?mode
 -H 'Authorization: Bearer $TOKEN' \
 -H 'Content-Type: application/ld+json' \
 -H 'cache-control: no-cache' \
---data-binary '@${TEMPFILE}_mod.json'\n"
+--data-binary '@${TEMPFILE}_mod.json'"
 
 curl $CURLOPTS -X POST "${HUBURL}/api/scan/data/?mode=replace" \
 -H "Authorization: Bearer $TOKEN" \
@@ -107,7 +106,7 @@ curl $CURLOPTS -X POST "${HUBURL}/api/scan/data/?mode=replace" \
 --data-binary "@${TEMPFILE}_mod.json"
 if [ $? -ne 0 ]
 then
-	error "Unable to upload scan data to server $HUBURL\n"
+	error "Unable to upload scan data to server $HUBURL"
 fi
 
 msg "\nSCAN UPLOADED SUCCESSFULLY\n"
