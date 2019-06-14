@@ -98,7 +98,7 @@ proc_opts() {
 				#	PREVOPT=
 				elif [ "$PREVOPT" == "-excludepatterns" ]
 				then
-					EXCLUDELIST=$opt
+					EXCLUDEPATTERNS=$opt
 					PREVOPT=
 				elif [ -z "$PREVOPT" ]
 				then
@@ -107,7 +107,7 @@ proc_opts() {
 		esac
 	done
 	
-	if [ -z "$FOCUSFILE" -a -z "$EXCLUDELIST" ]
+	if [ -z "$FOCUSFILE" -a -z "$EXCLUDEPATTERNS" ]
 	then
 		error 'Please specify either "-focusfile focusfile" or "-excludepatterns patternlist" or both\n'
 	fi
@@ -119,7 +119,7 @@ check_prereqs() {
 	#if [ -z "$TEST" -o "$TEST" != '100' ]
 	if [ $? -ne 0 ]
 	then
-		msg "jq package required - please install before continuing\n"
+		msg "jq v1.6+ package required - please install before continuing\n"
 		return -1
 	fi
 	hash curl 2>/dev/null
@@ -159,7 +159,7 @@ check_prereqs() {
 debugmsg () {
 	if [ "$DEBUG" == "1" ]
 	then
-		echo "$*" >> $LOGFILE
+		printf "$*" >> $LOGFILE
 	fi
 }
 

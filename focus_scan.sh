@@ -25,7 +25,41 @@ fserror () {
 	fsend 1
 }
 
+fsdebugmsg () {
+	STRING="$1"
+	shift
+	if [ "$FSDEBUG" == "1" ]
+	then
+		printf "$STRING" >> $LOGFILE
+	fi
+}
+
+fsdebugfile () {
+	if [ "$FSDEBUG" == "1" ]
+	then
+		if [ $# -ne 2 ]
+		then
+			return
+		fi
+		if [ -r "$1" ] 
+		then
+			cp -f "$1" "DEBUG_$2"
+			printf "Copied file %s to %s\n" "$1" "DEBUG_$2" >> $LOGFILE
+		fi
+	fi	
+}
+
+fsmsg () {
+	STRING="$1"
+	if [ "$FSDEBUG" == "1" ]
+	then
+		printf "$STRING" >> $LOGFILE
+	fi
+	printf "$STRING"
+}
+
 fsproc_opts() {
+
 	PREVOPT=
 	for opt in $*
 	do
@@ -69,7 +103,7 @@ fsproc_opts() {
 					PREVOPT=
 				elif [ "$PREVOPT" == "-excludepatterns" ]
 				then
-					EXCLUDELIST=$opt
+					EXCLUDEPATTERNS="$opt"
 					PREVOPT=
 				elif [ -z "$PREVOPT" ]
 				then
@@ -78,52 +112,13 @@ fsproc_opts() {
 				;;
 		esac
 	done
+	fsdebugmsg "focus_scan.sh called with arguments '$*'\n"
 	
-	if [ -z "$FOCUSFILE" -a -z "$EXCLUDELIST" ]
+	if [ -z "$FOCUSFILE" -a -z "$EXCLUDEPATTERNS" ]
 	then
 		fserror 'Please specify either "-focusfile focusfile" or "-excludepatterns patternlist" or both\n'
 	fi
 }
-
-fsdebugmsg () {
-	STRING="$1"
-	shift
-	if [ "$FSDEBUG" == "1" ]
-	then
-		printf "$STRING" >> $LOGFILE
-	fi
-}
-
-fsdebugfile () {
-	if [ "$FSDEBUG" == "1" ]
-	then
-		if [ $# -ne 2 ]
-		then
-			return
-		fi
-		if [ -r "$1" ] 
-		then
-			cp -f "$1" "DEBUG_$2"
-			printf "Copied file %s to %s\n" "$1" "DEBUG_$2" >> $LOGFILE
-		fi
-	fi	
-}
-
-fsmsg () {
-	STRING="$1"
-	if [ "$FSDEBUG" == "1" ]
-	then
-		printf "$STRING" >> $LOGFILE
-	fi
-	printf "$STRING"
-}
-
-fsdebugmsg "focus_scan.sh called with arguments '$*'\n"
-if [ $# -lt 2 ]
-then
-	fsmsg "Usage: focus_scan.sh [-filesonly] -jsonfile jsonfile [-focusfile filelist|-excludepatterns patt1,patt2] [-jsonout outputfile]\n"
-	fsend 1
-fi
 
 fsproc_opts $*
 
@@ -313,7 +308,7 @@ fi
 
 #
 # Create the file match string
-if [ ! -z "$EXCLUDELIST" ]
+if [ ! -z "$EXCLUDEPATTERNS" ]
 then
 	fsmsg "Processing exclusion patterns ...\n"
 	if [ ! -z "$FOCUSFILE" -a -r "${FSTEMPFILE}_out" ]
@@ -329,7 +324,7 @@ BEGIN {
 	removedblocks=0
 	outputblocks=0
 	initialfinalblock=1
-	split("'$EXCLUDELIST'", patterns, ",")
+	split("'$EXCLUDEPATTERNS'", patterns, ",")
 }
 
 FILENAME==ARGV[1] {
